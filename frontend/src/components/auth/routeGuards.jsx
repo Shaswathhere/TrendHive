@@ -1,5 +1,8 @@
-import { Navigate, useLocation } from "react-router-dom"
+'use client';
+
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
+import { useEffect } from "react"
 
 function FullPageLoader({ message }) {
   return (
@@ -14,14 +17,20 @@ function FullPageLoader({ message }) {
 
 export function ProtectedRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuth()
-  const location = useLocation()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push("/login")
+    }
+  }, [isLoading, isAuthenticated, router])
 
   if (isLoading) {
     return <FullPageLoader message="Checking your workspace access..." />
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location }} />
+    return null
   }
 
   return children
@@ -29,13 +38,20 @@ export function ProtectedRoute({ children }) {
 
 export function PublicOnlyRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.push("/app")
+    }
+  }, [isLoading, isAuthenticated, router])
 
   if (isLoading) {
     return <FullPageLoader message="Loading TrendHive..." />
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/app" replace />
+    return null
   }
 
   return children

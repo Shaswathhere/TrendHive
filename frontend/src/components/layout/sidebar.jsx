@@ -1,14 +1,19 @@
-import { NavLink } from "react-router-dom"
+'use client';
+
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { BookOpen, Bot, LayoutDashboard, UserCircle2, Sparkles } from "lucide-react"
 
 const navItems = [
-  { to: "/app",          label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/app",          label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/app/trendbot", label: "TrendBot",  icon: Bot },
   { to: "/app/infohub",  label: "InfoHub",   icon: BookOpen },
   { to: "/app/profile",  label: "Profile",   icon: UserCircle2 },
 ]
 
 export function Sidebar() {
+  const pathname = usePathname()
+
   return (
     <aside className="min-h-screen bg-sidebar border-r border-sidebar-border p-6 text-sidebar-foreground flex flex-col shadow-2xl relative overflow-hidden">
       {/* Background glow */}
@@ -27,23 +32,23 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="space-y-1.5 flex-1 relative z-10">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) =>
-              `flex items-center gap-3.5 rounded-2xl px-5 py-3.5 text-sm font-bold transition-all duration-300 ${
+        {navItems.map((item) => {
+          const isActive = item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(item.to + "/")
+          return (
+            <Link
+              key={item.to}
+              href={item.to}
+              className={`flex items-center gap-3.5 rounded-2xl px-5 py-3.5 text-sm font-bold transition-all duration-300 ${
                 isActive
                   ? "bg-indigo-600 text-white shadow-xl shadow-indigo-900/40 translate-x-1"
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
-              }`
-            }
-          >
-            <item.icon className={`h-4.5 w-4.5 flex-shrink-0 ${item.isActive ? 'text-white' : 'text-indigo-400/70'}`} />
-            {item.label}
-          </NavLink>
-        ))}
+              }`}
+            >
+              <item.icon className="h-4.5 w-4.5 flex-shrink-0 text-indigo-400/70" />
+              {item.label}
+            </Link>
+          )
+        })}
       </nav>
 
       {/* Bottom label */}

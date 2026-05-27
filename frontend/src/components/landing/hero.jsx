@@ -1,9 +1,11 @@
+'use client';
+
 import { Button } from "@/components/ui/button"
-import { useNavigate } from "react-router-dom"
+import { useRouter } from "next/navigation"
 import { Sparkles, ArrowRight } from "lucide-react"
 
 export function Hero() {
-  const navigate = useNavigate()
+  const router = useRouter()
   return (
     <section className="relative pt-32 pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden">
       {/* Background blobs */}
@@ -43,7 +45,7 @@ export function Hero() {
         >
           <Button
             className="gradient-indigo text-white px-8 py-6 text-base font-semibold rounded-xl shadow-lg shadow-indigo-500/25 hover:opacity-90 hover:shadow-xl hover:shadow-indigo-500/30 transition-all duration-300 group"
-            onClick={() => navigate("/signup")}
+            onClick={() => router.push("/signup")}
           >
             Start Free
             <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />

@@ -1,8 +1,10 @@
+'use client';
+
 import { Button } from "@/components/ui/button"
-import { useNavigate } from "react-router-dom"
+import { useRouter } from "next/navigation"
 
 export function Header() {
-  const navigate = useNavigate()
+  const router = useRouter()
   return (
     <header className="fixed top-0 w-full z-50 bg-[#f5f5ff]/80 dark:bg-[#0c0a1e]/80 backdrop-blur-lg border-b border-indigo-100 dark:border-[#2d2a50] animate-fade-in">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
@@ -32,13 +34,13 @@ export function Header() {
           <Button
             variant="ghost"
             className="text-sm font-medium text-[#4b5563] dark:text-[#94a3b8] hover:text-[#4f46e5] dark:hover:text-[#a5b4fc] hover:bg-indigo-50 dark:hover:bg-[#1e1b4b] transition-all duration-200"
-            onClick={() => navigate("/login")}
+            onClick={() => router.push("/login")}
           >
             Sign In
           </Button>
           <Button
             className="gradient-indigo text-white text-sm font-semibold shadow-md shadow-indigo-500/30 hover:opacity-90 transition-all duration-200"
-            onClick={() => navigate("/signup")}
+            onClick={() => router.push("/signup")}
           >
             Get Started
           </Button>

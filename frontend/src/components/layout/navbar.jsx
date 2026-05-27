@@ -1,3 +1,5 @@
+'use client';
+
 import { LogOut, Bell, Sun, Moon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/useAuth"

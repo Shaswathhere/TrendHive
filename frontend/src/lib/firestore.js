@@ -68,7 +68,7 @@ export async function saveUserPreferences(userId, preferences) {
   await setDoc(
     userDoc(userId),
     {
-      preferences,
+      ...preferences,
       updatedAt: isoNow(),
     },
     { merge: true }

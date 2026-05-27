@@ -1,9 +1,11 @@
+'use client';
+
 import { Button } from "@/components/ui/button"
-import { useNavigate } from "react-router-dom"
+import { useRouter } from "next/navigation"
 import { ArrowRight } from "lucide-react"
 
 export function CTA() {
-  const navigate = useNavigate()
+  const router = useRouter()
   return (
     <section id="cta" className="py-24 px-4 sm:px-6 lg:px-8 bg-[#f5f5ff] dark:bg-[#0c0a1e]">
       <div className="max-w-4xl mx-auto animate-slide-up">
@@ -20,7 +22,7 @@ export function CTA() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 className="bg-white text-indigo-700 hover:bg-indigo-50 px-8 py-6 text-base font-semibold rounded-xl shadow-md transition-all duration-300 group"
-                onClick={() => navigate("/signup")}
+                onClick={() => router.push("/signup")}
               >
                 Start Free
                 <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
