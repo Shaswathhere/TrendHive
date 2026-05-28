@@ -57,7 +57,7 @@ function getFriendlyTrendBotError(payload, fallbackMessage) {
 
 export default function TrendBotPage() {
   const { user } = useAuth()
-  const { chats, activeChatId, chatHistory, createChatSession, selectChat, removeChat, addChatMessage, addInsight, addActivity, isWorkspaceLoading } = useWorkspace()
+  const { chats, activeChatId, chatHistory, createChatSession, selectChat, removeChat, addChatMessage, addInsight, addActivity, isWorkspaceLoading, preferences } = useWorkspace()
   const searchParams = useSearchParams()
   const [prompt, setPrompt] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -73,24 +73,27 @@ export default function TrendBotPage() {
         url.searchParams.delete("q");
         window.history.replaceState(null, "", url.pathname + url.search);
       }
-      
-      // Auto submit
-      void handleSubmit(null, query)
+
+      // Always open a NEW chat for dashboard-originated queries
+      // createChatSession returns the new chatId so we can pass it directly
+      // without relying on activeChatId state propagation timing
+      const openInNewChat = async () => {
+        const newChatId = await createChatSession(query.slice(0, 42))
+        if (newChatId) {
+          void handleSubmitWithChatId(query, newChatId)
+        }
+      }
+      void openInNewChat()
     }
   }, [searchParams, isWorkspaceLoading])
 
-  async function handleSubmit(event, promptOverride) {
-    event?.preventDefault()
-    const nextPrompt = (promptOverride || prompt).trim()
-    if (!nextPrompt || isSubmitting) {
-      logWarn("TrendBot", "Prompt submission skipped", { reason: !nextPrompt ? "empty_prompt" : "already_submitting" })
-      return
-    }
-
+  // Core submit logic — accepts an optional explicit chatId so dashboard-originated
+  // queries can bypass activeChatId state timing and use the freshly created chat
+  async function runSubmit(nextPrompt, explicitChatId) {
     setError("")
     setIsSubmitting(true)
     const userMessage = { id: createId(), role: "user", content: nextPrompt, createdAt: new Date().toISOString() }
-    await addChatMessage(userMessage)
+    await addChatMessage(userMessage, explicitChatId)
     setPrompt("")
     logInfo("TrendBot", "Prompt submitted", { promptPreview: nextPrompt.slice(0, 120), userId: user?.uid || "anonymous" })
 
@@ -104,7 +107,15 @@ export default function TrendBotPage() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ prompt: nextPrompt, userId: user?.uid || "anonymous" }),
+        body: JSON.stringify({
+          prompt: nextPrompt,
+          userId: user?.uid || "anonymous",
+          preferences: {
+            focusArea: preferences?.focusArea || "",
+            preferredFormat: preferences?.preferredFormat || "",
+            updateFrequency: preferences?.updateFrequency || ""
+          }
+        }),
       })
 
       const payload = await response.json()
@@ -114,7 +125,7 @@ export default function TrendBotPage() {
       if (!payload?.response?.trim()) throw new Error("TrendBot returned an empty response.")
 
       const botMessage = { id: createId(), role: "assistant", content: payload.response, createdAt: new Date().toISOString() }
-      await addChatMessage(botMessage)
+      await addChatMessage(botMessage, explicitChatId)
       await addActivity({ id: createId(), title: "TrendBot conversation", description: `Asked about "${nextPrompt}"`, createdAt: new Date().toISOString() })
     } catch (err) {
       logError("TrendBot", "TrendBot request failed", { message: err.message })
@@ -122,6 +133,21 @@ export default function TrendBotPage() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  async function handleSubmit(event, promptOverride) {
+    event?.preventDefault()
+    const nextPrompt = (promptOverride || prompt).trim()
+    if (!nextPrompt || isSubmitting) {
+      logWarn("TrendBot", "Prompt submission skipped", { reason: !nextPrompt ? "empty_prompt" : "already_submitting" })
+      return
+    }
+    await runSubmit(nextPrompt)
+  }
+
+  async function handleSubmitWithChatId(nextPrompt, chatId) {
+    if (!nextPrompt || isSubmitting) return
+    await runSubmit(nextPrompt, chatId)
   }
 
   async function handleCreateChat() { setError(""); await createChatSession() }

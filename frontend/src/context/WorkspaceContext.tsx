@@ -262,12 +262,15 @@ export function WorkspaceProvider({ children }) {
     setActiveChatId((current) => (current === chatId ? null : current))
   }, [user])
 
-  const addChatMessage = useCallback(async (message) => {
+  const addChatMessage = useCallback(async (message, explicitChatId) => {
     if (!user?.uid) {
       return
     }
 
-    let chatId = activeChatId
+    // Use the explicitly provided chatId (e.g. from a freshly created chat) or
+    // fall back to the current activeChatId. This avoids React state timing issues
+    // when the caller already knows exactly which chat to write into.
+    let chatId = explicitChatId || activeChatId
     if (!chatId) {
       chatId = await createChatSession()
       if (!chatId) {

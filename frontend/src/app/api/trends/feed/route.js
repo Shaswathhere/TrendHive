@@ -47,48 +47,64 @@ const FALLBACK_TRENDS = [
   { id: "mental-health", title: "Digital cognitive therapy adoption rates", category: "Mental Health", signalStrength: "medium", interestId: "mentalhealth" }
 ];
 
-async function fetchRealTrends(interests = []) {
-  const RSS_URL = "https://trends.google.com/trends/trendingsearches/daily/rss?geo=US";
+const RSS_SOURCES = [
+  { name: "Google Trends", url: "https://trends.google.com/trends/trendingsearches/daily/rss?geo=US" },
+  { name: "TechCrunch", url: "https://techcrunch.com/feed/" },
+  { name: "Hacker News", url: "https://news.ycombinator.com/rss" }
+];
 
+async function fetchFeed(source) {
   try {
-    console.log("[Trends] Fetching real-world trends from Google RSS");
-    
-    const response = await fetch(RSS_URL, {
+    const response = await fetch(source.url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5"
-      }
+        "Accept": "application/xml,text/xml,*/*;q=0.8"
+      },
+      next: { revalidate: 3600 } // cache for 1 hour
     });
-    if (!response.ok) {
-      throw new Error(`Google RSS returned status: ${response.status} (${response.statusText})`);
-    }
+    if (!response.ok) return [];
 
     const xmlText = await response.text();
-    
-    // Simple manual parsing of the RSS XML to avoid extra dependencies
     const titles = [];
     const itemRegex = /<item>([\s\S]*?)<\/item>/g;
     const titleRegex = /<title>(.*?)<\/title>/;
-    
+
     let match;
     while ((match = itemRegex.exec(xmlText)) !== null) {
       const itemContent = match[1];
       const titleMatch = titleRegex.exec(itemContent);
       if (titleMatch && titleMatch[1]) {
-        titles.push(titleMatch[1]);
+        const titleText = titleMatch[1]
+          .replace(/<!\[CDATA\[/g, "")
+          .replace(/\]\]>/g, "")
+          .trim();
+        if (titleText && !titles.includes(titleText)) {
+          titles.push(titleText);
+        }
       }
     }
+    return titles;
+  } catch (err) {
+    console.warn(`[Trends] Failed to fetch feed ${source.name}:`, err.message);
+    return [];
+  }
+}
 
-    if (titles.length === 0) {
-      console.warn("[Trends] No trends found in RSS feed, using fallbacks");
+async function fetchRealTrends(interests = []) {
+  try {
+    console.log("[Trends] Concurrently aggregating specialized RSS feeds...");
+    
+    const feedResults = await Promise.all(RSS_SOURCES.map(fetchFeed));
+    const allTitles = Array.from(new Set(feedResults.flat()));
+
+    if (allTitles.length === 0) {
+      console.warn("[Trends] All RSS feeds returned empty, using fallback catalog");
       return getFallbackTrends(interests);
     }
 
-    const filteredTrends = titles.slice(0, 20).map((title, index) => {
+    const filteredTrends = allTitles.map((title, index) => {
       let matchedCategory = "General";
       let matchedId = "general";
-      
       const titleLower = title.toLowerCase();
       
       for (const [interestId, keywords] of Object.entries(INTEREST_KEYWORDS)) {
@@ -107,7 +123,7 @@ async function fetchRealTrends(interests = []) {
         title: title,
         category: matchedCategory,
         interestId: matchedId,
-        signalStrength: index < 5 ? "high" : "medium",
+        signalStrength: index < 10 ? "high" : "medium",
         timestamp: new Date().toISOString()
       };
     }).filter(trend => {

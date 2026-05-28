@@ -59,7 +59,7 @@ function mapOpenAiError(err) {
   }
 }
 
-async function generateTrendAnalysis(prompt) {
+async function generateTrendAnalysis(prompt, preferences = null) {
   const apiKey = process.env.GROQ_API_KEY
 
   if (!apiKey) {
@@ -75,15 +75,33 @@ async function generateTrendAnalysis(prompt) {
 
   const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant"
 
-  console.log(`[Groq] Creating trend analysis. Model: ${model}`);
+  console.log(`[Groq] Creating structured trend analysis. Model: ${model}`);
 
   try {
+    let systemPrompt = "You are TrendBot, a highly analytical market intelligence agent. You summarize trends, explain why they matter, and suggest actionable next steps in extremely concise, executive-level language.\n\n" +
+      "CRITICAL: You MUST format your response strictly using standard Markdown with the following structured headings in UPPERCASE:\n\n" +
+      "### SUMMARY & CONTEXT\n" +
+      "[Provide a highly-condensed summary of the trend context and why it is happening now]\n\n" +
+      "### KEY INDUSTRY DRIVERS\n" +
+      "[List the core drivers or technological shifts driving this trend in bold bullet highlights, starting with - ]\n\n" +
+      "### COMPETITIVE IMPACTS & SUGGESTIONS\n" +
+      "[Explain the direct competitive impacts on relevant industries and markets]\n\n" +
+      "### ACTIONABLE NEXT STEPS\n" +
+      "[Suggest 3 clear, highly actionable strategic recommendations for builders and investors, starting with - ]"
+
+    if (preferences && preferences.focusArea) {
+      systemPrompt += `\n\nUSER CONTEXT FOCUS: The user has selected the following focus areas: ${preferences.focusArea}. Prioritize, skew, and tailor your analysis, competitive impacts, and suggestion points directly towards these domains if the query relates to them.`
+    }
+    if (preferences && preferences.preferredFormat) {
+      systemPrompt += `\n\nUSER FORMAT CONTEXT: The user prefers a '${preferences.preferredFormat}' style. Strictly adjust your paragraph lengths, technical depth, and detail granularity to align with this preference.`
+    }
+
     const completion = await client.chat.completions.create({
       model,
       messages: [
         {
           role: "system",
-          content: "You are TrendBot, an analyst that summarizes trends, explains why they matter, and suggests actionable next steps in concise language.",
+          content: systemPrompt,
         },
         {
           role: "user",
@@ -123,7 +141,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
-  const { prompt } = body || {}
+  const { prompt, preferences } = body || {}
 
   if (!prompt || !prompt.trim()) {
     console.warn("[Chat] Prompt rejected because it was empty");
@@ -137,23 +155,7 @@ export async function POST(request) {
 
     console.log("[Chat] TrendBot analysis requested by user:", user.uid);
 
-    const result = await generateTrendAnalysis(normalizedPrompt)
-
-    // AI Persistence: Save to Firestore
-    if (db) {
-      try {
-        await db.collection("chats").add({
-          userId: user.uid,
-          prompt: normalizedPrompt,
-          response: result.response,
-          source: result.source,
-          createdAt: new Date().toISOString(),
-        })
-        console.log("[Chat] Saved chat to Firestore.");
-      } catch (saveError) {
-        console.error("[Chat] Failed to save chat to Firestore:", saveError.message);
-      }
-    }
+    const result = await generateTrendAnalysis(normalizedPrompt, preferences)
 
     return NextResponse.json({
       ...result,
