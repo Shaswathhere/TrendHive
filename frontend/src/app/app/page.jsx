@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/hooks/useWorkspace"
 import { TrendingUp, Zap, Layers, ArrowRight, Globe, RefreshCw } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -48,7 +49,43 @@ export default function HomePage() {
   const [trends, setTrends] = useState([])
   const [isLoadingTrends, setIsLoadingTrends] = useState(true)
   const [lastSynced, setLastSynced] = useState(null)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncError, setSyncError] = useState("")
+  const [syncSuccess, setSyncSuccess] = useState("")
   const unsubRef = useRef(null)
+
+  const handleManualSync = async () => {
+    setIsSyncing(true)
+    setSyncError("")
+    setSyncSuccess("")
+    try {
+      let token = ""
+      if (user) {
+        token = await user.getIdToken()
+      }
+
+      const res = await fetch("/api/trends/sync", {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to synchronize trends.")
+      }
+
+      setSyncSuccess(data.message || "Trends successfully synchronized!")
+      setTimeout(() => setSyncSuccess(""), 4500)
+    } catch (err) {
+      console.error("[Manual Sync] Error:", err.message)
+      setSyncError(err.message)
+      setTimeout(() => setSyncError(""), 6000)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
 
   const firstName = user?.displayName?.split(" ")[0] || "there"
   const greeting = () => {
@@ -114,14 +151,37 @@ export default function HomePage() {
           </h2>
           <div className="flex items-center gap-3">
             {lastSynced && (
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-                <RefreshCw className="w-3 h-3" />
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5 font-medium">
+                <RefreshCw className="w-3 h-3 text-slate-400" />
                 Synced {lastSynced.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </span>
             )}
-            <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider animate-pulse">Live · GitHub</span>
+            <Button
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              variant="outline"
+              size="sm"
+              className="h-7 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 hover:border-indigo-500/40 text-[10px] font-bold gap-1.5 transition-all duration-300 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${isSyncing ? "animate-spin" : ""}`} />
+              {isSyncing ? "Syncing..." : "Sync Now"}
+            </Button>
+            <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider animate-pulse">Live</span>
           </div>
         </div>
+
+        {syncSuccess && (
+          <div className="rounded-2xl bg-emerald-500/15 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 p-3 text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            {syncSuccess}
+          </div>
+        )}
+        {syncError && (
+          <div className="rounded-2xl bg-rose-500/15 border border-rose-500/20 text-rose-600 dark:text-rose-400 p-3 text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+            {syncError}
+          </div>
+        )}
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {isLoadingTrends ? (
@@ -157,10 +217,10 @@ export default function HomePage() {
             ))
           ) : (
             <div className="col-span-full flex flex-col items-center justify-center py-12 text-center gap-3">
-              <RefreshCw className="w-8 h-8 text-slate-300 dark:text-slate-700" />
-              <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Waiting for GitHub Actions to sync trends</p>
+              <RefreshCw className="w-8 h-8 text-slate-300 dark:text-slate-700 animate-pulse" />
+              <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Waiting for trend data to be synchronized</p>
               <p className="text-xs text-slate-400 dark:text-slate-600 max-w-xs">
-                Trigger the <span className="font-mono font-bold">sync-trends</span> workflow in your GitHub repo, or wait for the next scheduled run.
+                Use the <span className="font-bold text-indigo-500 dark:text-indigo-400">Sync Now</span> button above to trigger an immediate live sync, or wait for the scheduled GitHub Actions run.
               </p>
             </div>
           )}
