@@ -17,24 +17,50 @@
 
 const admin = require("firebase-admin");
 const https = require("https");
+const fs = require("fs");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Firebase Admin init
+//
+// Two auth modes supported:
+//   LOCAL  — set GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json
+//             (avoids private key newline issues on Windows)
+//   CI/CD  — set FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY
+//             (used by GitHub Actions secrets)
 // ─────────────────────────────────────────────────────────────────────────────
-if (!process.env.FIREBASE_PROJECT_ID) {
-  console.error("❌  Missing FIREBASE_PROJECT_ID. Set it as a GitHub Secret.");
+function initFirebase() {
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    const keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    if (!fs.existsSync(keyPath)) {
+      console.error(`❌  Service account file not found: ${keyPath}`);
+      process.exit(1);
+    }
+    const serviceAccount = JSON.parse(fs.readFileSync(keyPath, "utf8"));
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    console.log("🔑  Auth: service account JSON file\n");
+    return;
+  }
+
+  if (process.env.FIREBASE_PROJECT_ID) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        // GitHub Actions stores the key with literal \n — this restores real newlines
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+      }),
+    });
+    console.log("🔑  Auth: environment variables\n");
+    return;
+  }
+
+  console.error("❌  No Firebase credentials found.");
+  console.error("    For local: set GOOGLE_APPLICATION_CREDENTIALS=path/to/serviceAccount.json");
+  console.error("    For CI/CD: set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY");
   process.exit(1);
 }
 
-admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    // GitHub Secrets escape newlines — this restores them
-    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-  }),
-});
-
+initFirebase();
 const db = admin.firestore();
 
 // ─────────────────────────────────────────────────────────────────────────────
