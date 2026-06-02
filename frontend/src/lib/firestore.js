@@ -11,6 +11,13 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 
+// Mirrors the 20 categories in scripts/sync-trends.js
+export const ALL_CATEGORY_IDS = [
+  "ai", "tech", "startups", "climate", "energy", "space", "finance",
+  "ecommerce", "health", "neuro", "quantum", "gaming", "creator",
+  "internet", "devtools", "cloud", "security", "futurework", "education", "mentalhealth"
+]
+
 function isoNow() {
   return new Date().toISOString()
 }
@@ -138,4 +145,46 @@ export function subscribeActivityLogs(userId, onData, onError) {
 
 export async function saveActivityLog(userId, entry) {
   await setDoc(doc(activityCollection(userId), entry.id), entry)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GitHub Actions Live Trends Feed
+// Real-time subscription to trends_feed/{categoryId} documents written
+// every 30 min by the GitHub Actions sync-trends workflow.
+// Returns an unsubscribe function.
+// ─────────────────────────────────────────────────────────────────────────────
+export function subscribeTrendsFeed(interests = [], onData, onError) {
+  const categories = interests.length > 0 ? interests : ALL_CATEGORY_IDS
+
+  const categoryCache = {}
+  const unsubscribers = []
+
+  function emitMerged() {
+    const merged = Object.values(categoryCache)
+      .flat()
+      .sort((a, b) => {
+        if (a.signalStrength === "high" && b.signalStrength !== "high") return -1
+        if (b.signalStrength === "high" && a.signalStrength !== "high") return 1
+        return 0
+      })
+    onData(merged)
+  }
+
+  for (const catId of categories) {
+    const ref = doc(db, "trends_feed", catId)
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        categoryCache[catId] = snap.exists() ? (snap.data().items || []) : []
+        emitMerged()
+      },
+      (err) => {
+        console.warn(`[TrendsFeed] ${catId}:`, err.message)
+        if (onError) onError(err)
+      }
+    )
+    unsubscribers.push(unsub)
+  }
+
+  return () => unsubscribers.forEach((u) => u())
 }

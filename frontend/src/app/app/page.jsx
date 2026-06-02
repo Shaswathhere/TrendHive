@@ -2,11 +2,11 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useWorkspace } from "@/hooks/useWorkspace"
-import { TrendingUp, Zap, Layers, ArrowRight, Globe } from "lucide-react"
+import { TrendingUp, Zap, Layers, ArrowRight, Globe, RefreshCw } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
-import { useState, useEffect } from "react"
-import { fetchTrends } from "@/lib/api"
+import { useState, useEffect, useRef } from "react"
+import { subscribeTrendsFeed } from "@/lib/firestore"
 
 const metrics = [
   {
@@ -47,6 +47,8 @@ export default function HomePage() {
   const router = useRouter()
   const [trends, setTrends] = useState([])
   const [isLoadingTrends, setIsLoadingTrends] = useState(true)
+  const [lastSynced, setLastSynced] = useState(null)
+  const unsubRef = useRef(null)
 
   const firstName = user?.displayName?.split(" ")[0] || "there"
   const greeting = () => {
@@ -57,18 +59,34 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    async function loadTrends() {
-      try {
-        const data = await fetchTrends(preferences?.interests || [])
-        setTrends(data)
-      } catch (err) {
-        console.error("Failed to load trends", err)
-      } finally {
+    if (isWorkspaceLoading) return
+
+    // Tear down previous subscription when interests change
+    if (unsubRef.current) unsubRef.current()
+
+    setIsLoadingTrends(true)
+    const interests = preferences?.interests || []
+
+    unsubRef.current = subscribeTrendsFeed(
+      interests,
+      (items) => {
+        setTrends(items)
+        setIsLoadingTrends(false)
+        // Show when GitHub Actions last wrote data
+        const latest = items.reduce((acc, item) => {
+          const t = item.fetchedAt || ""
+          return t > acc ? t : acc
+        }, "")
+        if (latest) setLastSynced(new Date(latest))
+      },
+      (err) => {
+        console.error("[Dashboard] Trends subscription error:", err)
         setIsLoadingTrends(false)
       }
-    }
-    if (!isWorkspaceLoading) {
-      loadTrends()
+    )
+
+    return () => {
+      if (unsubRef.current) unsubRef.current()
     }
   }, [preferences?.interests, isWorkspaceLoading])
 
@@ -94,7 +112,15 @@ export default function HomePage() {
             <Globe className="w-5 h-5 text-indigo-500" />
             Live Trends
           </h2>
-          <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider animate-pulse">Live from Google</span>
+          <div className="flex items-center gap-3">
+            {lastSynced && (
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                <RefreshCw className="w-3 h-3" />
+                Synced {lastSynced.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+            <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider animate-pulse">Live · GitHub</span>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -130,7 +156,13 @@ export default function HomePage() {
               </Card>
             ))
           ) : (
-            <p className="text-sm text-slate-500 dark:text-slate-400">No live trends available right now.</p>
+            <div className="col-span-full flex flex-col items-center justify-center py-12 text-center gap-3">
+              <RefreshCw className="w-8 h-8 text-slate-300 dark:text-slate-700" />
+              <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Waiting for GitHub Actions to sync trends</p>
+              <p className="text-xs text-slate-400 dark:text-slate-600 max-w-xs">
+                Trigger the <span className="font-mono font-bold">sync-trends</span> workflow in your GitHub repo, or wait for the next scheduled run.
+              </p>
+            </div>
           )}
         </div>
       </section>

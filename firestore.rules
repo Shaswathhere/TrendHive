@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Per-user workspace (private) ─────────────────────────────────────────
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /chats/{chatId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+
+        match /messages/{messageId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+
+      match /saved_insights/{insightId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /activity_logs/{logId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // ── Shared trends feed (written by GitHub Actions via Admin SDK) ──────────
+    // All authenticated users can read.
+    // Client writes are blocked — GitHub Actions uses Admin SDK (bypasses rules).
+    match /trends_feed/{categoryId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}

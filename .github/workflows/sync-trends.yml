@@ -1,0 +1,40 @@
+name: TrendHive — Sync Live Trends
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Runs every 30 minutes to fetch trends from RSS feeds and write them
+# into Firestore (trends_feed collection) using Firebase Admin SDK.
+# The TrendHive dashboard subscribes to Firestore in real-time, so
+# updates appear instantly on the dashboard without any page refresh.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    - cron: '0,30 * * * *'   # every 30 minutes, 24/7
+  workflow_dispatch:           # allows manual trigger from GitHub Actions UI
+
+jobs:
+  sync-trends:
+    name: Fetch & Sync Trends to Firestore
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install sync script dependencies
+        run: npm install
+        working-directory: scripts
+
+      - name: Run trend sync
+        run: node sync-trends.js
+        working-directory: scripts
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}

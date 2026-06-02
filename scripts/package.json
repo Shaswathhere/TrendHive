@@ -1,0 +1,12 @@
+{
+  "name": "trendhive-sync",
+  "version": "1.0.0",
+  "description": "Standalone RSS fetch + Firestore sync script for TrendHive. Run by GitHub Actions every 30 minutes.",
+  "main": "sync-trends.js",
+  "scripts": {
+    "start": "node sync-trends.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}
