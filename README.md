@@ -1,3 +1,5 @@
+# Live demo URL - https://trend-hive-ten.vercel.app
+
 # TrendHive
 
 TrendHive is an AI-powered trend discovery and innovation platform for exploring emerging technologies, analyzing signals across industries, saving insights, and eventually collaborating around ideas.
